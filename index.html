@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secure Screen Sharing</title>
+  <style>
+    video { width: 100%; max-width: 600px; border: 1px solid #ccc; }
+    button, input { margin: 10px; padding: 10px; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <h1>Secure Screen Sharing</h1>
+
+  <input type="text" id="roomId" placeholder="Enter Room ID">
+  <input type="password" id="password" placeholder="Enter Password">
+  <button id="createRoom">Create Room</button>
+  <button id="joinRoom">Join Room</button>
+
+  <video id="localVideo" autoplay muted></video>
+  <div id="remoteVideos"></div>
+  <button id="startSharing" disabled>Start Sharing</button>
+  <button id="stopSharing" disabled>Stop Sharing</button>
+
+  <script>
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideos = document.getElementById('remoteVideos');
+    const createRoomBtn = document.getElementById('createRoom');
+    const joinRoomBtn = document.getElementById('joinRoom');
+    const startSharing = document.getElementById('startSharing');
+    const stopSharing = document.getElementById('stopSharing');
+
+    let localStream, roomId, signalingServer;
+    const peerConnections = {};
+
+    createRoomBtn.onclick = () => {
+      roomId = document.getElementById('roomId').value;
+      const password = document.getElementById('password').value;
+      signalingServer = new WebSocket('ws://localhost:8080');
+
+      signalingServer.onopen = () => {
+        signalingServer.send(JSON.stringify({ type: 'create', roomId, password }));
+      };
+
+      signalingServer.onmessage = handleMessage;
+      startSharing.disabled = false;
+    };
+
+    joinRoomBtn.onclick = () => {
+      roomId = document.getElementById('roomId').value;
+      const password = document.getElementById('password').value;
+      signalingServer = new WebSocket(' ws://localhost:8080');
+
+      signalingServer.onopen = () => {
+        signalingServer.send(JSON.stringify({ type: 'join', roomId, password }));
+      };
+
+      signalingServer.onmessage = handleMessage;
+      startSharing.disabled = false;
+    };
+
+    async function startScreenShare() {
+      localStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      localVideo.srcObject = localStream;
+      startSharing.disabled = true;
+      stopSharing.disabled = false;
+      signalingServer.send(JSON.stringify({ type: 'ready', roomId }));
+    }
+
+    function stopScreenShare() {
+      localStream.getTracks().forEach(track => track.stop());
+      localVideo.srcObject = null;
+      startSharing.disabled = false;
+      stopSharing.disabled = true;
+    }
+
+    function handleMessage(event) {
+      const data = JSON.parse(event.data);
+
+      if (data.type === 'error') {
+        alert(data.message);
+      } else if (data.type === 'new_peer') {
+        startWebRTCConnection();
+      }
+    }
+
+    async function startWebRTCConnection() {
+      const peerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          signalingServer.send(JSON.stringify({ type: 'candidate', candidate: event.candidate, roomId }));
+        }
+      };
+
+      peerConnection.ontrack = (event) => {
+        const remoteVideo = document.createElement('video');
+        remoteVideo.autoplay = true;
+        remoteVideo.srcObject = event.streams[0];
+        remoteVideos.appendChild(remoteVideo);
+      };
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      signalingServer.send(JSON.stringify({ type: 'offer', offer, roomId }));
+    }
+
+    startSharing.onclick = startScreenShare;
+    stopSharing.onclick = stopScreenShare;
+  </script>
+</body>
+</html>
