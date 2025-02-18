@@ -3,24 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Secure Screen Sharing</title>
+  <title>Secure Video Meeting</title>
   <style>
-    video { width: 100%; max-width: 600px; border: 1px solid #ccc; }
-    button, input { margin: 10px; padding: 10px; font-size: 16px; }
+    body { font-family: Arial, sans-serif; text-align: center; }
+    #container { max-width: 800px; margin: auto; padding: 20px; }
+    video { width: 100%; max-width: 600px; border: 2px solid #333; border-radius: 10px; }
+    button, input { margin: 10px; padding: 10px; font-size: 16px; border-radius: 5px; border: 1px solid #333; }
+    button { background-color: #007bff; color: white; cursor: pointer; }
+    button:disabled { background-color: #ccc; cursor: not-allowed; }
   </style>
 </head>
 <body>
-  <h1>Secure Screen Sharing</h1>
+  <div id="container">
+    <h1>Secure Video Meeting</h1>
+    <input type="text" id="roomId" placeholder="Enter Room ID or generate one">
+    <input type="password" id="password" placeholder="Enter Password">
+    <button id="createRoom">Create Room</button>
+    <button id="joinRoom">Join Room</button>
+    <p id="meetingLink"></p>
 
-  <input type="text" id="roomId" placeholder="Enter Room ID">
-  <input type="password" id="password" placeholder="Enter Password">
-  <button id="createRoom">Create Room</button>
-  <button id="joinRoom">Join Room</button>
-
-  <video id="localVideo" autoplay muted></video>
-  <div id="remoteVideos"></div>
-  <button id="startSharing" disabled>Start Sharing</button>
-  <button id="stopSharing" disabled>Stop Sharing</button>
+    <video id="localVideo" autoplay muted></video>
+    <div id="remoteVideos"></div>
+    <button id="startSharing" disabled>Start Sharing</button>
+    <button id="stopSharing" disabled>Stop Sharing</button>
+  </div>
 
   <script>
     const localVideo = document.getElementById('localVideo');
@@ -29,14 +35,22 @@
     const joinRoomBtn = document.getElementById('joinRoom');
     const startSharing = document.getElementById('startSharing');
     const stopSharing = document.getElementById('stopSharing');
+    const meetingLink = document.getElementById('meetingLink');
 
     let localStream, roomId, signalingServer;
     const peerConnections = {};
 
+    async function getMediaStream() {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
+    }
+    getMediaStream();
+
     createRoomBtn.onclick = () => {
-      roomId = document.getElementById('roomId').value;
+      roomId = document.getElementById('roomId').value || Math.random().toString(36).substring(2, 10);
       const password = document.getElementById('password').value;
       signalingServer = new WebSocket('wss://webrtc-screen-share-1.onrender.com');
+      meetingLink.innerHTML = `Share this link: <a href="?roomId=${roomId}" target="_blank">Join Meeting</a>`;
 
       signalingServer.onopen = () => {
         signalingServer.send(JSON.stringify({ type: 'create', roomId, password }));
@@ -47,7 +61,8 @@
     };
 
     joinRoomBtn.onclick = () => {
-      roomId = document.getElementById('roomId').value;
+      const urlParams = new URLSearchParams(window.location.search);
+      roomId = urlParams.get('roomId') || document.getElementById('roomId').value;
       const password = document.getElementById('password').value;
       signalingServer = new WebSocket('wss://webrtc-screen-share-1.onrender.com');
 
@@ -60,7 +75,7 @@
     };
 
     async function startScreenShare() {
-      localStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
       startSharing.disabled = true;
       stopSharing.disabled = false;
@@ -86,7 +101,6 @@
 
     async function startWebRTCConnection() {
       const peerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-
       localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
       peerConnection.onicecandidate = (event) => {
