@@ -36,7 +36,7 @@
     createRoomBtn.onclick = () => {
       roomId = document.getElementById('roomId').value;
       const password = document.getElementById('password').value;
-      signalingServer = new WebSocket('ws://localhost:8080');
+      signalingServer = new WebSocket('wss://webrtc-screen-share-1.onrender.com');
 
       signalingServer.onopen = () => {
         signalingServer.send(JSON.stringify({ type: 'create', roomId, password }));
@@ -49,7 +49,7 @@
     joinRoomBtn.onclick = () => {
       roomId = document.getElementById('roomId').value;
       const password = document.getElementById('password').value;
-      signalingServer = new WebSocket(' ws://localhost:8080');
+      signalingServer = new WebSocket('wss://webrtc-screen-share-1.onrender.com');
 
       signalingServer.onopen = () => {
         signalingServer.send(JSON.stringify({ type: 'join', roomId, password }));
